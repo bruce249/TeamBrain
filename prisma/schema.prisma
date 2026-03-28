@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Workspace ───────────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("team") // "team" | "personal"
+  createdAt DateTime @default(now())
+
+  users         User[]
+  knowledgeCards KnowledgeCard[]
+  querySessions  QuerySession[]
+  feedItems      TeamFeedItem[]
+
+  @@map("workspaces")
+}
+
+// ─── User ────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  avatar    String?
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  knowledgeCards KnowledgeCard[]
+  querySessions  QuerySession[]
+
+  @@map("users")
+}
+
+// ─── KnowledgeCard ───────────────────────────────────────────
+
+model KnowledgeCard {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String   @db.Text
+  summary     String
+  tags        String[]
+  isPinned    Boolean  @default(false)
+  isCanonical Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  feedItems   TeamFeedItem[]
+
+  @@index([workspaceId])
+  @@index([tags])
+  @@map("knowledge_cards")
+}
+
+// ─── QuerySession ────────────────────────────────────────────
+
+model QuerySession {
+  id        String   @id @default(cuid())
+  messages  Json     // Array of { role, content, timestamp }
+  createdAt DateTime @default(now())
+
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("query_sessions")
+}
+
+// ─── TeamFeedItem ────────────────────────────────────────────
+
+model TeamFeedItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  cardId    String
+  card      KnowledgeCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("team_feed_items")
+}
